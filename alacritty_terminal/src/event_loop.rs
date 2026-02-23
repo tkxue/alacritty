@@ -3,21 +3,37 @@
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::fmt::{self, Display, Formatter};
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs::File;
-use std::io::{self, ErrorKind, Read, Write};
+use std::io;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+#[cfg(not(target_arch = "wasm32"))]
 use std::thread::JoinHandle;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
+#[cfg(not(target_arch = "wasm32"))]
 use log::error;
+#[cfg(not(target_arch = "wasm32"))]
 use polling::{Event as PollingEvent, Events, PollMode};
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::event::{self, Event, EventListener, WindowSize};
+#[cfg(target_arch = "wasm32")]
+use crate::event::{self, WindowSize};
+
+#[cfg(not(target_arch = "wasm32"))]
 use crate::sync::FairMutex;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::term::Term;
+
+#[cfg(not(target_arch = "wasm32"))]
 use crate::{thread, tty};
+#[cfg(target_arch = "wasm32")]
+use crate::tty;
+
 use vte::ansi;
 
 /// Max bytes to read from the PTY before forced terminal synchronization.
@@ -43,6 +59,7 @@ pub enum Msg {
 ///
 /// Handles all the PTY I/O and runs the PTY parser which updates terminal
 /// state.
+#[cfg(not(target_arch = "wasm32"))]
 pub struct EventLoop<T: tty::EventedPty, U: EventListener> {
     poll: Arc<polling::Poller>,
     pty: T,
@@ -54,6 +71,7 @@ pub struct EventLoop<T: tty::EventedPty, U: EventListener> {
     ref_test: bool,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl<T, U> EventLoop<T, U>
 where
     T: tty::EventedPty + event::OnResize + Send + 'static,
@@ -383,13 +401,22 @@ impl std::error::Error for EventLoopSendError {
 #[derive(Clone)]
 pub struct EventLoopSender {
     sender: Sender<Msg>,
+    #[cfg(not(target_arch = "wasm32"))]
     poller: Arc<polling::Poller>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl EventLoopSender {
     pub fn send(&self, msg: Msg) -> Result<(), EventLoopSendError> {
         self.sender.send(msg).map_err(EventLoopSendError::Send)?;
         self.poller.notify().map_err(EventLoopSendError::Io)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl EventLoopSender {
+    pub fn send(&self, msg: Msg) -> Result<(), EventLoopSendError> {
+        self.sender.send(msg).map_err(EventLoopSendError::Send)
     }
 }
 

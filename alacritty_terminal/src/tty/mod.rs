@@ -6,11 +6,12 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 use std::{env, io};
 
+#[cfg(not(target_arch = "wasm32"))]
 use polling::{Event, PollMode, Poller};
 
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_arch = "wasm32")))]
 mod unix;
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_arch = "wasm32")))]
 pub use self::unix::*;
 
 #[cfg(windows)]
@@ -69,8 +70,11 @@ pub trait EventedReadWrite {
     /// # Safety
     ///
     /// The underlying sources must outlive their registration in the `Poller`.
+    #[cfg(not(target_arch = "wasm32"))]
     unsafe fn register(&mut self, _: &Arc<Poller>, _: Event, _: PollMode) -> io::Result<()>;
+    #[cfg(not(target_arch = "wasm32"))]
     fn reregister(&mut self, _: &Arc<Poller>, _: Event, _: PollMode) -> io::Result<()>;
+    #[cfg(not(target_arch = "wasm32"))]
     fn deregister(&mut self, _: &Arc<Poller>) -> io::Result<()>;
 
     fn reader(&mut self) -> &mut Self::Reader;
@@ -127,8 +131,11 @@ fn terminfo_exists(terminfo: &str) -> bool {
 
     if let Some(dir) = env::var_os("TERMINFO") {
         check_path!(PathBuf::from(&dir));
-    } else if let Some(home) = home::home_dir() {
-        check_path!(home.join(".terminfo"));
+    } else {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(home) = home::home_dir() {
+            check_path!(home.join(".terminfo"));
+        }
     }
 
     if let Ok(dirs) = env::var("TERMINFO_DIRS") {
